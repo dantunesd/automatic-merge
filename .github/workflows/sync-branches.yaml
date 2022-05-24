@@ -1,0 +1,51 @@
+name: Sync Branches
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  from: master
+  target: homolog
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Merge
+        uses: devmasx/merge-branch@v1.3.1
+        with:
+          type: now
+          from_branch: ${{ env.from }}
+          target_branch: ${{ env.target }}
+          github_token: ${{ github.token }}
+
+      - name: Checkout If Merge Fails
+        if: failure()
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ env.target }}
+
+      - name: Get differences
+        if: failure()
+        run: |
+          git fetch origin ${{ env.from }}:${{ env.from }}
+          git reset --hard ${{ env.from }}
+
+      - name: Create Pull Request
+        if: failure()
+        uses: peter-evans/create-pull-request@v3
+        with:
+          title: Sync ${{ env.target }} with ${{ env.from }}
+          body: |
+            This PR was opened by Github Actions due to conflicts when synchronizing branches. 
+            See: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          branch: Synchronization
+          assignees: ${{ github.actor }}
+          reviewers: ${{ github.actor }}
+          labels: sync
+          delete-branch: true
